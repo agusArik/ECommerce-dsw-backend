@@ -32,7 +32,7 @@ export class PedidoSeeder extends Seeder {
             cantidad: 2,
           },
           {
-            mueble: "Lámpara de pie con base metálica y pantalla de tela.",
+            mueble: "Lámpara de pie con base metálica y pantalla de tela",
             cantidad: 1,
           },
         ],
@@ -43,7 +43,7 @@ export class PedidoSeeder extends Seeder {
         fechaHora: new Date("2026-07-1"),
         items: [
           {
-            mueble: "Mesa de comedor de roble macizo para 6 personas.",
+            mueble: "Mesa de comedor de roble macizo para 6 personas",
             cantidad: 1,
           },
         ],
@@ -54,7 +54,7 @@ export class PedidoSeeder extends Seeder {
         fechaHora: new Date("2026-07-2"),
         items: [
           {
-            mueble: "Silla ergonómica tapizada con soporte lumbar ajustable.",
+            mueble: "Silla ergonómica tapizada con soporte lumbar ajustable",
             cantidad: 4,
           },
         ],
@@ -65,7 +65,7 @@ export class PedidoSeeder extends Seeder {
         fechaHora: new Date("2026-07-4"),
         items: [
           {
-            mueble: "Biblioteca modular adaptable a distintos espacios.",
+            mueble: "Biblioteca modular adaptable a distintos espacios",
             cantidad: 1,
           },
           {
@@ -81,7 +81,7 @@ export class PedidoSeeder extends Seeder {
         items: [
           {
             mueble:
-              "Sillón reclinable de cuero sintético con apoyapiés extensible.",
+              "Sillón reclinable de cuero sintético con apoyapiés extensible",
             cantidad: 1,
           },
         ],
@@ -142,6 +142,6 @@ export class PedidoSeeder extends Seeder {
 
     await em.flush();
 
-    console.log("Pedidos creados.");
+    console.log("Pedidos creados");
   }
 }
