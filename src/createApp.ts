@@ -15,6 +15,7 @@ import { pedidoRouter } from "./pedido/pedido.routes.js";
 import { usuarioRouter } from "./usuario/usuario.routes.js";
 import { pagoRouter } from "./pago/pago.routes.js";
 import { orm } from "./shared/db/orm.js";
+import { errorMiddleware } from "./shared/http/handleError.js";
 
 export function createApp() {
   const app = express();
@@ -36,11 +37,19 @@ export function createApp() {
     }),
   );
 
+  // Detrás de un proxy (Render, Railway, etc.) hay que confiar en él para
+  // que el rate limit vea la IP real del cliente y no la del proxy.
+  if (process.env.TRUST_PROXY) {
+    app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
+  }
+
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000,
       max: 100,
       message: { message: "Demasiadas solicitudes, intenta más tarde" },
+      // MercadoPago no debe quedar bloqueado por el límite
+      skip: (req) => req.originalUrl.startsWith("/api/pagos/webhook"),
     }),
   );
 
@@ -89,6 +98,8 @@ export function createApp() {
   app.use("/api/muebles", muebleRouter);
   app.use("/api/descuentos", descuentoRouter);
   app.use("/api/pagos", pagoRouter);
+
+  app.use(errorMiddleware);
 
   return app;
 }

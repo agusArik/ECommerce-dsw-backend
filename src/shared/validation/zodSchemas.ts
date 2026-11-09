@@ -39,6 +39,9 @@ export const UsuarioSchema = z.object({
   fondos: z.number().nonnegative(),
 });
 
+// Lo que un cliente puede editar de su propia cuenta: sin rol ni fondos.
+export const UsuarioSelfSchema = UsuarioSchema.omit({ rol: true, fondos: true });
+
 export const RegistroSchema = z.object({
   nombre: z.string().min(2),
   apellido: z.string().min(2),
@@ -66,7 +69,7 @@ export const MaterialSchema = z.object({
 });
 
 export const MuebleSchema = z.object({
-  descripcion: z.string().min(10).max(500),
+  descripcion: z.string().min(10).max(255), // la columna es varchar(255)
   stock: z.number().int().nonnegative(),
   etiqueta: z.string().min(2).max(50),
   precioUnitario: z.number().nonnegative(),
@@ -75,14 +78,12 @@ export const MuebleSchema = z.object({
   material: z.number().int().positive(),
 });
 
-const datetime = z.date();
-
 export const DescuentoSchema = z.object({
   codigo: z.string().min(2),
   tipo: z.enum(["Cantidad", "Monto"]),
-  porcentaje: z.number().min(0).max(100),
+  porcentaje: z.number().int().min(0).max(100), // la columna es int
   descripcion: z.string().min(5).max(255).optional(),
-  fechaExpiracion: datetime.optional(), // ISO date string
+  fechaExpiracion: z.coerce.date().optional(), // acepta un string ISO del JSON
 });
 
 export const FavoritoSchema = z.object({

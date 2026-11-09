@@ -17,7 +17,7 @@ export class Categoria extends BaseEntity {
   descripcion!: string;
 
   @OneToMany(() => Mueble, (mueble) => mueble.categoria, {
-    cascade: [Cascade.ALL],
+    cascade: [Cascade.PERSIST], // sin REMOVE: no borra muebles en cascada
   })
   muebles = new Collection<Mueble>(this);
 }

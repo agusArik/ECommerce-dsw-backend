@@ -6,7 +6,9 @@ import {
   remove,
   update,
   sanitizeMaterialInput,
+  sanitizeMaterialPatchInput,
 } from "./material.controller.js";
+import { requireRole, verifyToken } from "../auth/auth.middleware.js";
 
 export const materialRouter = Router();
 
@@ -157,9 +159,13 @@ export const materialRouter = Router();
  *         description: Token requerido
  */
 
+// Públicas
 materialRouter.get("/", findAll);
 materialRouter.get("/:id", findOne);
-materialRouter.post("/", sanitizeMaterialInput, add);
-materialRouter.put("/:id", sanitizeMaterialInput, update);
-materialRouter.patch("/:id", sanitizeMaterialInput, update);
-materialRouter.delete("/:id", remove);
+
+// Admin
+const soloAdmin = [verifyToken, requireRole("admin")];
+materialRouter.post("/", ...soloAdmin, sanitizeMaterialInput, add);
+materialRouter.put("/:id", ...soloAdmin, sanitizeMaterialInput, update);
+materialRouter.patch("/:id", ...soloAdmin, sanitizeMaterialPatchInput, update);
+materialRouter.delete("/:id", ...soloAdmin, remove);

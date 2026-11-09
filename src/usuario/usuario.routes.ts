@@ -7,10 +7,10 @@ import {
 import {
   addFavorito,
   findAllFavoritos,
+  findFavoritoMueble,
   removeFavorito,
   sanitizeFavoritoInput,
 } from "../favoritos/favoritos.controller.js";
-import { findOne as findOneMueble } from "../mueble/mueble.controller.js";
 import {
   add,
   findAll,
@@ -329,7 +329,7 @@ usuarioRouter.get(
   "/:id/favoritos/mueble/:idMueble",
   verifyToken,
   requireSelfOrAdmin,
-  findOneMueble,
+  findFavoritoMueble,
 );
 usuarioRouter.post(
   "/:id/favoritos/",

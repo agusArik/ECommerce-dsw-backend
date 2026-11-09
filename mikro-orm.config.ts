@@ -24,7 +24,7 @@ export default defineConfig({
   highlighter: new SqlHighlighter(),
   debug: !isProduction,
   schemaGenerator: {
-    disableForeignKeys: !isProduction, // solo activa en produccion
+    disableForeignKeys: !isProduction, // en desarrollo desactiva las FK al recrear el esquema
     createForeignKeyConstraints: true,
     ignoreSchema: [],
   },

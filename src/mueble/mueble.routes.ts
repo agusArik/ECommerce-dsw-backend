@@ -5,6 +5,7 @@ import {
   findOne,
   remove,
   sanitizeMuebleInput,
+  sanitizeMueblePatchInput,
   update,
 } from "./mueble.controller.js";
 import { requireRole, verifyToken } from "../auth/auth.middleware.js";
@@ -215,7 +216,7 @@ muebleRouter.patch(
   "/:id",
   verifyToken,
   requireRole("admin"),
-  sanitizeMuebleInput,
+  sanitizeMueblePatchInput,
   update,
 );
 muebleRouter.delete("/:id", verifyToken, requireRole("admin"), remove);

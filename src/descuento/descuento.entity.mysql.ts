@@ -13,11 +13,12 @@ export class Descuento extends BaseEntity {
 	@Property()
 	porcentaje!: number;
 
-	@Property()
+	@Property({ nullable: true })
 	descripcion?: string;
 
+	// Sin valor por defecto: antes se creaba con la fecha actual y vencía al instante
 	@Property({ nullable: true })
-	fechaExpiracion?: Date = new Date();
+	fechaExpiracion?: Date;
 
 	@ManyToOne(() => Pedido, { nullable: true })
 	pedido?: Rel<Pedido>;

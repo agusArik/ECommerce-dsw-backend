@@ -32,7 +32,8 @@ export class Usuario extends BaseEntity {
   @Property({ unique: true })
   email!: string;
 
-  @Property()
+  // hidden: nunca se incluye al serializar la entidad a JSON
+  @Property({ hidden: true })
   passwordHash!: string;
 
   @Property({ default: "cliente" })
@@ -41,8 +42,9 @@ export class Usuario extends BaseEntity {
   @Property()
   fondos: number = 0;
 
+  // Sin Cascade.REMOVE: borrar un usuario no debe borrar su historial de pedidos
   @OneToMany(() => Pedido, (pedidos) => pedidos.usuario, {
-    cascade: [Cascade.ALL],
+    cascade: [Cascade.PERSIST],
   })
   pedidos = new Collection<Pedido>(this);
 

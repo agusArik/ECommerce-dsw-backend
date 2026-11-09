@@ -491,6 +491,74 @@ describe("Pedidos integration", () => {
   });
 
   // ---------------------------------------------------------------------
+  // Cancelación por admin (PATCH /:id/estado) y datos sensibles
+  // ---------------------------------------------------------------------
+  describe("Cancelación por admin y respuesta de creación", () => {
+    it("el admin que cancela un pedido repone el stock", async () => {
+      const cliente = await crearUsuario("cliente");
+      const admin = await crearUsuario("admin");
+      const mueble = await crearMueble({ stock: 5, precioUnitario: 300 });
+      const tokenCliente = tokenPara(cliente);
+
+      const resCrear = await request(app)
+        .post("/api/pedidos")
+        .set("Authorization", `Bearer ${tokenCliente}`)
+        .send({ items: [{ mueble: mueble.id, cantidad: 3 }] });
+      expect(resCrear.status).toBe(201);
+
+      await em.refresh(mueble);
+      expect(mueble.stock).toBe(2);
+
+      const res = await request(app)
+        .patch(`/api/pedidos/${resCrear.body.data.id}/estado`)
+        .set("Authorization", `Bearer ${tokenPara(admin)}`)
+        .send({ estado: "cancelado" });
+
+      expect(res.status).toBe(200);
+      await em.refresh(mueble);
+      expect(mueble.stock).toBe(5);
+    });
+
+    it("cambiar el estado de un pedido inexistente devuelve 404", async () => {
+      const admin = await crearUsuario("admin");
+      const res = await request(app)
+        .patch("/api/pedidos/999999999/estado")
+        .set("Authorization", `Bearer ${tokenPara(admin)}`)
+        .send({ estado: "confirmado" });
+
+      expect(res.status).toBe(404);
+    });
+
+    it("la respuesta de crear pedido no expone el passwordHash", async () => {
+      const cliente = await crearUsuario("cliente");
+      const mueble = await crearMueble();
+
+      const res = await request(app)
+        .post("/api/pedidos")
+        .set("Authorization", `Bearer ${tokenPara(cliente)}`)
+        .send({ items: [{ mueble: mueble.id, cantidad: 1 }] });
+
+      expect(res.status).toBe(201);
+      expect(JSON.stringify(res.body)).not.toContain("passwordHash");
+    });
+
+    it("el filtro admin rechaza fechas o estados inválidos con 400", async () => {
+      const admin = await crearUsuario("admin");
+      const token = tokenPara(admin);
+
+      const resFecha = await request(app)
+        .get("/api/pedidos/admin?fechaDesde=no-es-fecha")
+        .set("Authorization", `Bearer ${token}`);
+      expect(resFecha.status).toBe(400);
+
+      const resEstado = await request(app)
+        .get("/api/pedidos/admin?estado=inventado")
+        .set("Authorization", `Bearer ${token}`);
+      expect(resEstado.status).toBe(400);
+    });
+  });
+
+  // ---------------------------------------------------------------------
   // Ciclo completo: crear (descuenta) + cancelar (repone) sobre el
   // endpoint real, sin bypassear la lógica del controller
   // ---------------------------------------------------------------------

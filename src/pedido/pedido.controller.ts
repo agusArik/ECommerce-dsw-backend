@@ -6,15 +6,31 @@ import { Mueble } from "../mueble/mueble.entity.mysql.js";
 import { Pedido } from "./pedido.entity.mysql.js";
 import { validate } from "../shared/validation/validateRequest.js";
 import {
+  EstadoPedidoSchema,
   estadoPedido,
   PedidoSchema,
   updateEstadoPedidoSchema,
 } from "../shared/validation/zodSchemas.js";
+import { handleError } from "../shared/http/handleError.js";
 import { FilterQuery } from "@mikro-orm/core";
 // orm.em viene tipado como el EntityManager genérico de @mikro-orm/core,
 // que no expone getKnex() ni otros métodos SQL. Se importa el tipo del
 // driver para castear y poder usar knex.raw() en descuentos atómicos.
 import type { EntityManager as SqlEntityManager } from "@mikro-orm/mysql";
+
+const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// Devuelve true si el string tiene formato YYYY-MM-DD y es una fecha real
+function esFechaValida(value: string): boolean {
+  if (!FECHA_REGEX.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const fecha = new Date(year, month - 1, day);
+  return (
+    fecha.getFullYear() === year &&
+    fecha.getMonth() === month - 1 &&
+    fecha.getDate() === day
+  );
+}
 
 function parseDateStart(value: string): Date {
   const [year, month, day] = value.split("-").map(Number);
@@ -70,6 +86,20 @@ function serializePedido(pedido: Pedido) {
 class PedidoValidationError extends Error {}
 
 const em = orm.em as SqlEntityManager;
+
+// Devuelve al stock las cantidades de los ítems del pedido.
+// Usa "stock = stock + ?" en la base para que sea atómico y no pise
+// compras que ocurran al mismo tiempo.
+async function reponerStock(tem: SqlEntityManager, pedido: Pedido) {
+  const knex = tem.getKnex();
+  for (const item of pedido.items.getItems()) {
+    await tem.nativeUpdate(
+      Mueble,
+      { id: item.mueble.id },
+      { stock: knex.raw("stock + ?", [item.cantidad]) as unknown as number },
+    );
+  }
+}
 
 export const sanitizePedidoInput = validate(PedidoSchema);
 export const validateUpdateEstadoPedidoInput = validate(
@@ -173,9 +203,9 @@ export async function crearPedido(
 }
 
 export async function findAllPedidos(req: Request, res: Response) {
-  const usuario = await em.findOneOrFail(Usuario, { id: req.user!.id });
-
   try {
+    const usuario = await em.findOneOrFail(Usuario, { id: req.user!.id });
+
     const pedidos = await em.find(
       Pedido,
       { usuario },
@@ -198,7 +228,19 @@ export async function findAllPedidosAdmin(req: Request, res: Response) {
     const where: FilterQuery<Pedido> = {};
 
     if (typeof estado === "string") {
-      where.estado = estado as Pedido["estado"];
+      const estadoValido = EstadoPedidoSchema.safeParse(estado);
+      if (!estadoValido.success) {
+        return res.status(400).json({ message: `Estado inválido: '${estado}'` });
+      }
+      where.estado = estadoValido.data;
+    }
+
+    for (const fecha of [fechaDesde, fechaHasta]) {
+      if (typeof fecha === "string" && !esFechaValida(fecha)) {
+        return res
+          .status(400)
+          .json({ message: `Fecha inválida: '${fecha}' (formato YYYY-MM-DD)` });
+      }
     }
 
     if (typeof fechaDesde === "string" || typeof fechaHasta === "string") {
@@ -258,10 +300,7 @@ export async function findPedidoById(req: Request, res: Response) {
 export async function updateEstadoPedido(req: Request, res: Response) {
   try {
     const id = Number(req.params.pedidoId);
-    const nuevoEstado = req.body.estado as estadoPedido;
-
-    console.log("ID:", id);
-    console.log("Estado recibido:", nuevoEstado);
+    const nuevoEstado: estadoPedido = req.body.validated.estado;
 
     const transiciones: Record<estadoPedido, estadoPedido[]> = {
       pendiente: ["confirmado", "cancelado"],
@@ -279,78 +318,82 @@ export async function updateEstadoPedido(req: Request, res: Response) {
       });
     }
 
-    const pedido = await em.findOneOrFail(Pedido, { id });
+    const resultado = await em.transactional(async (tem) => {
+      const pedido = await tem.findOneOrFail(
+        Pedido,
+        { id },
+        { populate: ["items.mueble"] },
+      );
 
-    const transicionesValidas =
-      transiciones[pedido.estado as estadoPedido] || [];
+      const transicionesValidas = transiciones[pedido.estado] || [];
+      if (!transicionesValidas.includes(nuevoEstado)) {
+        throw new PedidoValidationError(
+          `Transición de estado inválida: no se puede pasar de '${pedido.estado}' a '${nuevoEstado}'.`,
+        );
+      }
 
-    console.log("Transiciones válidas:", transicionesValidas);
+      // Si el admin cancela, el stock reservado vuelve a estar disponible
+      if (nuevoEstado === "cancelado") {
+        await reponerStock(tem, pedido);
+      }
 
-    if (!transicionesValidas.includes(nuevoEstado)) {
-      console.log("TRANSICIÓN INVÁLIDA");
-
-      return res.status(400).json({
-        message: `Transición de estado inválida: no se puede pasar de '${pedido.estado}' a '${nuevoEstado}'.`,
-      });
-    }
-
-    pedido.estado = nuevoEstado;
-    await em.flush();
+      pedido.estado = nuevoEstado;
+      await tem.flush();
+      return pedido;
+    });
 
     return res.status(200).json({
       message: `Estado del pedido actualizado a '${nuevoEstado}'.`,
-      data: pedido,
+      data: resultado,
     });
-  } catch (error: any) {
-    console.error("ERROR REAL:", error);
-
-    return res.status(500).json({
-      message: error.message,
-    });
+  } catch (error) {
+    if (error instanceof PedidoValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+    return handleError(res, error, "Error al actualizar el estado del pedido");
   }
 }
+
+class PedidoAjenoError extends Error {}
 
 export async function cancelarPedido(req: Request, res: Response) {
   try {
     const id = Number(req.params.pedidoId);
-    const pedido = await em.findOneOrFail(
-      Pedido,
-      { id },
-      { populate: ["items.mueble"] },
-    );
 
-    // Solo el propio usuario puede cancelar
-    if (pedido.usuario.id !== req.user!.id) {
-      return res
-        .status(403)
-        .json({ message: "No podés cancelar un pedido ajeno" });
-    }
+    const pedido = await em.transactional(async (tem) => {
+      const pedido = await tem.findOneOrFail(
+        Pedido,
+        { id },
+        { populate: ["items.mueble"] },
+      );
 
-    const cancelables = ["pendiente", "confirmado"];
-    if (!cancelables.includes(pedido.estado)) {
-      return res.status(400).json({
-        message: `No se puede cancelar un pedido en estado '${pedido.estado}'`,
-      });
-    }
+      // Solo el propio usuario puede cancelar
+      if (pedido.usuario.id !== req.user!.id) {
+        throw new PedidoAjenoError("No podés cancelar un pedido ajeno");
+      }
 
-    // Devolver stock al cancelar
-    for (const item of pedido.items.getItems()) {
-      item.mueble.stock += item.cantidad;
-    }
+      const cancelables = ["pendiente", "confirmado"];
+      if (!cancelables.includes(pedido.estado)) {
+        throw new PedidoValidationError(
+          `No se puede cancelar un pedido en estado '${pedido.estado}'`,
+        );
+      }
 
-    pedido.estado = "cancelado";
-    await em.flush();
+      await reponerStock(tem, pedido);
+
+      pedido.estado = "cancelado";
+      await tem.flush();
+      return pedido;
+    });
 
     res.status(200).json({ message: "Pedido cancelado", data: pedido });
-  } catch (error: any) {
-    if (error.name === "NotFoundError") {
-      return res.status(404).json({
-        message: "Pedido no encontrado",
-      });
+  } catch (error) {
+    if (error instanceof PedidoAjenoError) {
+      return res.status(403).json({ message: error.message });
     }
-
-    return res.status(500).json({
-      message: error.message,
-    });
+    if (error instanceof PedidoValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+    return handleError(res, error, "Error al cancelar el pedido");
   }
 }

@@ -40,8 +40,9 @@ export class Mueble extends BaseEntity {
 	material!: Rel<Material>;
 
 	// item es una entidad que representa una relacion con atributos
+	// Sin REMOVE: los ítems son historial de pedidos y no deben borrarse con el mueble
 	@OneToMany(() => Item, (item) => item.mueble, {
-		cascade: [Cascade.ALL],
+		cascade: [Cascade.PERSIST],
 	})
 	items? = new Collection<Item>(this);
 

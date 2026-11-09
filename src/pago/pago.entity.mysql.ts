@@ -1,4 +1,4 @@
-import { Entity, OneToMany, Property, Rel } from "@mikro-orm/core";
+import { Collection, Entity, OneToMany, Property } from "@mikro-orm/core";
 import { Pedido } from "../pedido/pedido.entity.mysql.js";
 import { BaseEntity } from "../shared/db/baseEntity.entity.mysql.js";
 
@@ -11,5 +11,5 @@ export class Pago extends BaseEntity {
   importe!: number;
 
   @OneToMany(() => Pedido, (pedido) => pedido.pago)
-  pedidos?: Rel<Pedido>;
+  pedidos = new Collection<Pedido>(this);
 }

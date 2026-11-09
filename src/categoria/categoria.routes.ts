@@ -8,6 +8,7 @@ import {
   sanitizeCategoriaPatchInput,
   update,
 } from "./categoria.controller.js";
+import { requireRole, verifyToken } from "../auth/auth.middleware.js";
 
 export const categoriaRouter = Router();
 
@@ -159,9 +160,13 @@ export const categoriaRouter = Router();
  *         description: Token requerido
  */
 
+// Públicas
 categoriaRouter.get("/", findAll);
 categoriaRouter.get("/:id", findOne);
-categoriaRouter.post("/", sanitizeCategoriaInput, add);
-categoriaRouter.put("/:id", sanitizeCategoriaInput, update);
-categoriaRouter.patch("/:id", sanitizeCategoriaPatchInput, update);
-categoriaRouter.delete("/:id", remove);
+
+// Admin
+const soloAdmin = [verifyToken, requireRole("admin")];
+categoriaRouter.post("/", ...soloAdmin, sanitizeCategoriaInput, add);
+categoriaRouter.put("/:id", ...soloAdmin, sanitizeCategoriaInput, update);
+categoriaRouter.patch("/:id", ...soloAdmin, sanitizeCategoriaPatchInput, update);
+categoriaRouter.delete("/:id", ...soloAdmin, remove);

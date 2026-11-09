@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { orm } from "../shared/db/orm.js";
+import { handleError } from "../shared/http/handleError.js";
 import { validate } from "../shared/validation/validateRequest.js";
 import { MuebleSchema } from "../shared/validation/zodSchemas.js";
 import { Mueble } from "./mueble.entity.mysql.js";
@@ -7,6 +8,7 @@ import { Mueble } from "./mueble.entity.mysql.js";
 const em = orm.em;
 
 export const sanitizeMuebleInput = validate(MuebleSchema);
+export const sanitizeMueblePatchInput = validate(MuebleSchema.partial());
 
 export async function findAll(req: Request, res: Response) {
   try {
@@ -54,11 +56,9 @@ export async function add(req: Request, res: Response) {
     const mueble = em.create(Mueble, { ...dto, activo: true });
 
     await em.flush();
-    res.status(200).json({ Message: "Mueble creado", data: mueble });
-  } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Error al crear el mueble", error: error.name });
+    res.status(201).json({ Message: "Mueble creado", data: mueble });
+  } catch (error) {
+    handleError(res, error, "Error al crear el mueble");
   }
 }
 
@@ -77,10 +77,8 @@ export async function update(req: Request, res: Response) {
     await em.flush();
     await em.populate(mueble, ["categoria", "material"]);
     res.status(200).json({ Message: "Mueble actualizado", data: mueble });
-  } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Error al actualizar el mueble", error: error.name });
+  } catch (error) {
+    handleError(res, error, "Error al actualizar el mueble");
   }
 }
 
@@ -96,9 +94,7 @@ export async function remove(req: Request, res: Response) {
       Message: "Mueble dado de baja",
       data: mueble,
     });
-  } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: "Error al dar de baja el mueble", error: error.name });
+  } catch (error) {
+    handleError(res, error, "Error al dar de baja el mueble");
   }
 }
